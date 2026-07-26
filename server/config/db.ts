@@ -5,7 +5,10 @@ const connectDB = async()=>{
         mongoose.connection.on("connected",async()=>{
             console.log("mongoDB connected");
         })
-        await mongoose.connect(process.env.MONGODB_URI!)
+        
+        // <-- ADD { family: 4 } to force IPv4 connection
+        await mongoose.connect(process.env.MONGODB_URI!, { family: 4 })
+        
     } catch (error:any) {
         console.error(error)
         process.exit(1);
