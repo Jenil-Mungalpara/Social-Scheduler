@@ -32,10 +32,10 @@ const AIComposer = () => {
     }, 2000)
   }
 
-  const handleSchedule = async()=>{
+  const handleSchedule = async () => {
     setScheduling(true)
     setTimeout(() => {
-     setScheduling(false)
+      setScheduling(false)
     }, 2000)
   }
 
