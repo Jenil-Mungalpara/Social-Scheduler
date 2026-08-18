@@ -32,7 +32,7 @@ export default function Login() {
 
     useEffect(()=>{
         if(user) navigate('/dashboard');
-    },[user])
+    },[user, navigate])
 
 
 

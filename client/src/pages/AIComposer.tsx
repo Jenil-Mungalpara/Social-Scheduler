@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { dummyGenerationData, PLATFORMS } from "../assets/assets";
+import { PLATFORMS } from "../assets/assets";
 import { ArrowRightIcon, CalendarIcon, ClockIcon, HistoryIcon, Loader2Icon, TimerIcon, Wand2Icon, XIcon } from "lucide-react";
+import toast from "react-hot-toast";
+import api from "../api/axios";
 
 const AIComposer = () => {
 
@@ -18,7 +20,13 @@ const AIComposer = () => {
   const [scheduling, setScheduling] = useState(false);
 
   const fetchGenerations = async () => {
-    setGenerations(dummyGenerationData)
+    try {
+      const { data } = await api.get("/api/posts/generations");
+      const list = Array.isArray(data) ? data : data?.generations || [];
+      setGenerations(list);
+    } catch (error: any) {
+      console.error("Failed to fetch generations", error);
+    }
   }
 
   useEffect(() => {
@@ -26,17 +34,69 @@ const AIComposer = () => {
   }, [])
 
   const handleGenerate = async () => {
-    setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
-    }, 2000)
+    if (!prompt.trim()) {
+      toast.error("Please enter a prompt to generate content");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data } = await api.post("/api/posts/generate", {
+        prompt,
+        tone,
+        generateImage
+      });
+      toast.success("Content generated successfully!");
+      if (data?.generation) {
+        setGenerations((prev) => [data.generation, ...prev]);
+      } else {
+        await fetchGenerations();
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error?.message || "Failed to generate content");
+    } finally {
+      setLoading(false);
+    }
   }
 
   const handleSchedule = async () => {
-    setScheduling(true)
-    setTimeout(() => {
-      setScheduling(false)
-    }, 2000)
+    if (!activeScheduler) return;
+    if (selectedPlatforms.length === 0) {
+      toast.error("Please select at least one platform");
+      return;
+    }
+    if (!scheduledDate || !scheduledTime) {
+      toast.error("Please select both a date and time");
+      return;
+    }
+    const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`);
+    if (isNaN(scheduledFor.getTime())) {
+      toast.error("Invalid scheduled date/time");
+      return;
+    }
+    if (scheduledFor <= new Date()) {
+      toast.error("Scheduled time must be in the future");
+      return;
+    }
+
+    setScheduling(true);
+    try {
+      await api.post("/api/posts", {
+        content: activeScheduler.content,
+        platforms: selectedPlatforms,
+        scheduledFor: scheduledFor.toISOString(),
+        mediaUrl: activeScheduler.mediaUrl,
+        mediaType: activeScheduler.mediaUrl ? "image" : undefined
+      });
+      toast.success("Post scheduled successfully!");
+      setActiveScheduler(null);
+      setSelectedPlatforms([]);
+      setScheduledDate("");
+      setScheduledTime("");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error?.message || "Failed to schedule post");
+    } finally {
+      setScheduling(false);
+    }
   }
 
   const tones = ["Professional", "Creative", "Funny", "Minimalist", "Excited"]

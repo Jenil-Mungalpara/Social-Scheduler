@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { dummyPostsData, PLATFORMS } from '../assets/assets';
-import { CalendarIcon, ClockIcon, XIcon, Loader2, ArrowRightIcon, CalendarDaysIcon, SendIcon } from 'lucide-react';
+import { PLATFORMS } from '../assets/assets';
+import { CalendarIcon, ClockIcon, XIcon, ArrowRightIcon, CalendarDaysIcon, SendIcon } from 'lucide-react';
+import toast from 'react-hot-toast';
+import api from '../api/axios';
 
 const Scheduler = () => {
 
@@ -13,13 +15,17 @@ const Scheduler = () => {
   const [loading, setLoading] = useState(false);
 
   const fetchPosts = async () => {
-    setPosts(dummyPostsData)
+    try {
+      const { data } = await api.get("/api/posts");
+      const list = Array.isArray(data) ? data : data?.posts || [];
+      setPosts(list);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error?.message || "Failed to fetch posts");
+    }
   }
 
   useEffect(() => {
-    (async () => await fetchPosts())();
-    const interval = setInterval(async () => await fetchPosts(), 1000);
-    return () => clearInterval(interval)
+    fetchPosts();
   }, [])
 
   const scheduled = posts.filter((p) => p.status === "scheduled")
@@ -28,12 +34,51 @@ const Scheduler = () => {
   const togglePlatform = (id: string) => setSelectedPlatforms((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]))
 
   const handleSchedule = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
-      setPosts((prev) => [...prev, dummyPostsData[0]])
-    }, 1000)
+    e.preventDefault();
+    if (selectedPlatforms.length === 0) {
+      toast.error("Please select at least one platform");
+      return;
+    }
+    if (!scheduleDate || !scheduleTime) {
+      toast.error("Please select both a date and time");
+      return;
+    }
+    const scheduledFor = new Date(`${scheduleDate}T${scheduleTime}`);
+    if (isNaN(scheduledFor.getTime())) {
+      toast.error("Invalid scheduled date/time");
+      return;
+    }
+    if (scheduledFor <= new Date()) {
+      toast.error("Scheduled time must be in the future");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("content", content);
+      formData.append("platforms", JSON.stringify(selectedPlatforms));
+      formData.append("scheduledFor", scheduledFor.toISOString());
+      if (mediaFile) {
+        formData.append("media", mediaFile);
+      }
+
+      await api.post("/api/posts", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+
+      toast.success("Post scheduled successfully!");
+      setContent("");
+      setScheduleDate("");
+      setscheduleTime("");
+      setSelectedPlatforms([]);
+      setmediaFile(null);
+      await fetchPosts();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error?.message || "Failed to schedule post");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

@@ -1,6 +1,6 @@
 import { PlusIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { dummyAccountsData, PLATFORMS } from '../assets/assets'
+import { PLATFORMS } from '../assets/assets'
 import AccountList from '../components/AccountList'
 import PlatformPickerModel from '../components/PlatformPickerModel'
 import toast from 'react-hot-toast'
@@ -22,13 +22,12 @@ const Accounts = () => {
       }
 
       const { data } = await api.get("/api/accounts")
-      setAccounts(data)
+      const list = Array.isArray(data) ? data : data?.accounts || [];
+      setAccounts(list)
     } catch (error: any) {
       toast.error(error?.response?.data?.message || error?.message || "Failed to load accounts");
     }
   }
-
-
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -54,16 +53,29 @@ const Accounts = () => {
   }, [])
 
   const handleDisconnect = async (accountId: string) => {
-    setAccounts(accounts.filter((a) => a._id !== accountId))
+    try {
+      toast.loading("Disconnecting account...", { id: "disconnect" });
+      await api.delete(`/api/accounts/${accountId}`);
+      setAccounts((prev) => prev.filter((a) => a._id !== accountId));
+      toast.success("Account disconnected successfully!", { id: "disconnect" });
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error?.message || "Failed to disconnect account", { id: "disconnect" });
+    }
   }
 
   const handleConnect = async (platformId: string) => {
-    setConnecting(platformId);
-    setTimeout(() => {
-      setConnecting(null)
-      setAccounts((prev) => [...prev, dummyAccountsData[0]])
-      setShowPlatformPicker(false)
-    }, 1000)
+    try {
+      setConnecting(platformId);
+      const { data } = await api.get(`/api/oauth/${platformId}/url`);
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("No authorization URL returned");
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error?.message || `Failed to connect ${platformId}`);
+      setConnecting(null);
+    }
   }
 
   const connectedIds = accounts.map((a) => a.platform);
